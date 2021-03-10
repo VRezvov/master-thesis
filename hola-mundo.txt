@@ -3,3 +3,5 @@ Hola, mundo!
 Здесь был Петя
 Здесь был Вася
 
+Lucky was here
+
