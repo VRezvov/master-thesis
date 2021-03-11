@@ -264,7 +264,7 @@ def ssim(img1, img2, window_size=110, size_average=True):
 
 # LOSS
 
-class GeneratorLoss(nn.Module):
+class CNNLoss(nn.Module):
     def __init__(self):
         super(GeneratorLoss, self).__init__()
         #vgg = vgg19(pretrained=True)
@@ -277,9 +277,9 @@ class GeneratorLoss(nn.Module):
         #self.loss_network = loss_network
         self.mse_loss = nn.MSELoss()
 
-    def forward(self, fake_labels, out_images, target_images):
+    def forward(self, out_images, target_images):
         # Adversarial Loss
-        adversarial_loss = torch.mean(1 - fake_labels)
+        #adversarial_loss = torch.mean(1 - fake_labels)
         
         # Perception Loss
         #perception_loss = self.mse_loss(self.loss_network(out_images), self.loss_network(target_images))
@@ -288,25 +288,16 @@ class GeneratorLoss(nn.Module):
         image_loss = self.mse_loss(out_images, target_images)
         
         #generator_loss = image_loss + 0.005 * adversarial_loss + 0.01 * perception_loss
-        generator_loss = image_loss + 0.05 * adversarial_loss
-        return generator_loss
+        cnn_loss = image_loss
+        return cnn_loss
 
 
-#class DiscriminatorLoss(nn.Module):
-    #def __init__(self):
-    #    super(DiscriminatorLoss, self).__init__()
-
-    #def forward(self, fake_labels, real_labels):
-    #    discriminator_loss = 1 - real_labels + fake_labels
-    #    return discriminator_loss
-
-
-g_loss = GeneratorLoss()
+#g_loss = GeneratorLoss()
 #d_loss = DiscriminatorLoss()
 
 # MODEL
 
-class Generator(nn.Module):
+class CNN(nn.Module):
     def __init__(self):
         super(Generator, self).__init__()
         self.block1 = nn.Sequential(nn.Conv2d(3, 64, kernel_size=9, padding=4),nn.PReLU())
@@ -331,52 +322,6 @@ class Generator(nn.Module):
         block9 = self.block9(block8)
 
         return (torch.tanh(block9) + 1) / 2
-
-
-class Discriminator(nn.Module):
-    def __init__(self):
-        super(Discriminator, self).__init__()
-        self.net = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, padding=1),
-            nn.LeakyReLU(0.2),
-
-            nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(64),
-            nn.LeakyReLU(0.2),
-
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2),
-
-            nn.Conv2d(128, 128, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(128),
-            nn.LeakyReLU(0.2),
-
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(0.2),
-
-            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(256),
-            nn.LeakyReLU(0.2),
-
-            nn.Conv2d(256, 512, kernel_size=3, padding=1),
-            nn.BatchNorm2d(512),
-            nn.LeakyReLU(0.2),
-
-            nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=1),
-            nn.BatchNorm2d(512),
-            nn.LeakyReLU(0.2),
-
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(512, 1024, kernel_size=1),
-            nn.LeakyReLU(0.2),
-            nn.Conv2d(1024, 1, kernel_size=1)
-        )
-
-    def forward(self, x):
-        batch_size = x.size(0)
-        return torch.sigmoid(self.net(x).view(batch_size))
 
 
 class UpsampleBLock(nn.Module):
@@ -418,20 +363,11 @@ class ResidualBlock(nn.Module):
 
 # TRAIN
 
-#netG = Generator()
-#print('# generator parameters:', sum(param.numel() for param in netG.parameters()))
-#netD = Discriminator()
-#print('# discriminator parameters:', sum(param.numel() for param in netD.parameters()))
+def train_epoch(net: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, cuda_batches_queue: Queue,
+                criterion: callable, STEPS_PER_EPOCH: int):
 
-def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimizer, optimizerD: torch.optim.Optimizer, 
-                epoch: int, NUM_EPOCHS: int, cuda_batches_queue: Queue,
-                generator_criterion: callable, 
-                #discriminator_criterion: callable,
-                STEPS_PER_EPOCH: int):
+    net.train()
 
-    netG.train()
-    netD.train()
-    
     term_columns = os.get_terminal_size().columns
     pbar = tqdm(total=STEPS_PER_EPOCH, ncols=min(term_columns,180))
     
@@ -442,17 +378,13 @@ def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimi
     
     ssim_metrics = 0.0
     psnr_metrics = 0.0
-    #batch_sizes = 0
-    running_results_g_loss = 0.0
-    running_results_d_loss = 0.0
+    running_results_loss = 0.0
     ssims = 0
 
     for batch_idx in range(STEPS_PER_EPOCH):
         
         (img, trg, msk) = cuda_batches_queue.get(block=True)
-        
-        #batch_sizes += batch_size
-        
+
         wind_real = torch.sqrt(torch.square(trg[:,0,:,:]) + torch.square(trg[:,1,:,:]))
         
         img_norm = torch.zeros_like(img)
@@ -469,27 +401,16 @@ def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimi
         diff_msk = (wind_real - msk) > 0
         wind_real_msk = wind_real * diff_msk
         
-        g_update_first = True
+        #g_update_first = True
 
-        fake_img = netG(img_norm)
-        fake_out = netD(fake_img).mean()
-        g_loss = generator_criterion(fake_out, fake_img, trg_norm)
+        fake_img = net(img_norm)
+        cnn_loss = criterion(fake_img, trg_norm)
+        net.zero_grad()
+        cnn_loss.backward(retain_graph = True)
+        optimizer.step()
         
-        netG.zero_grad()
-        g_loss.backward(retain_graph = True)
-        optimizerG.step()     
-    
-        real_out = netD(trg_norm).mean()
-        fake_out = netD(fake_img.detach()).mean()
-        d_loss = 1 - real_out + fake_out
+        running_results_loss += cnn_loss.item()
 
-        netD.zero_grad()
-        d_loss.backward()
-        optimizerD.step()
-        
-        running_results_g_loss += g_loss.item()
-        running_results_d_loss += d_loss.item()
-        
         fake_img_unnorm = torch.zeros_like(fake_img)
         
         fake_img_unnorm[:,0,:,:] = 80*fake_img[:,0,:,:] - 40
@@ -529,15 +450,7 @@ def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimi
         if batch_idx >= STEPS_PER_EPOCH - 1:
             break
 
-    g_loss = running_results_g_loss / STEPS_PER_EPOCH
-    d_loss = running_results_d_loss / STEPS_PER_EPOCH
-
-
-        
-
-    #ssim_metrics = float(((ssim_metrics / STEPS_PER_EPOCH)))
-    #psnr_metrics = float(((psnr_metrics / STEPS_PER_EPOCH)))
-    #mse_metrics = float((mse_metrics/STEPS_PER_EPOCH).cpu())
+    cnn_loss = running_results_loss / STEPS_PER_EPOCH
     rmse_wind_metrics = float((rmse_wind_metrics/STEPS_PER_EPOCH).cpu())
     rmse_slp_metrics = float((rmse_slp_metrics/STEPS_PER_EPOCH).cpu())
     rmse95_metrics = float((rmse95_metrics/STEPS_PER_EPOCH).cpu())
@@ -562,8 +475,7 @@ def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimi
 
     pbar.close()
 
-    losses_dict = {'train_g_loss': g_loss,
-                   'train_d_loss': d_loss}
+    losses_dict = {'train_loss': g_loss}
     metrics_values = {'RMSE_Wind': rmse_wind_metrics,
                       'RMSE_SLP': rmse_slp_metrics,
                       'RMSE95': rmse95_metrics,
@@ -572,21 +484,17 @@ def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimi
     return dict(**losses_dict, **metrics_values)
 
 
-def validation(netG: nn.Module, netD: nn.Module, cuda_batches_queue: Queue, generator_criterion: callable,
-               VAL_STEPS: int, epoch: int):
+def validation(net: nn.Module, cuda_batches_queue: Queue, criterion: callable, VAL_STEPS: int):
     
-    netG.eval()
-    netD.eval()
-    
+    net.eval()
+
     mse_metrics = 0.0
     rmse_wind_metrics = 0.0
     rmse_slp_metrics = 0.0
     rmse95_metrics = 0.0
     ssim_metrics = 0.0
     psnr_metrics = 0.0
-    #batch_sizes = 0
-    running_results_g_loss = 0.0
-    running_results_d_loss = 0.0
+    running_results_loss = 0.0
     ssims = 0
     
     with torch.no_grad():
@@ -594,9 +502,7 @@ def validation(netG: nn.Module, netD: nn.Module, cuda_batches_queue: Queue, gene
         pbar = tqdm(total=VAL_STEPS, ncols=min(term_columns, 180))
         for batch_idx in range(VAL_STEPS):
             (img, trg, msk) = cuda_batches_queue.get(block=True)
-            
-            #batch_sizes += val_batch_size
-            
+
             wind_real = torch.sqrt(torch.square(trg[:,0,:,:]) + torch.square(trg[:,1,:,:]))
             
             img_norm = torch.zeros_like(img)
@@ -613,15 +519,10 @@ def validation(netG: nn.Module, netD: nn.Module, cuda_batches_queue: Queue, gene
             diff_msk = (wind_real - msk) > 0
             wind_real_msk = wind_real * diff_msk
 
-            output = netG(img_norm)
-            fake_out = netD(output).mean()
-            g_loss = generator_criterion(fake_out, output, trg_norm)
-            real_out = netD(trg_norm).mean()
-            d_loss = 1 - real_out + fake_out
+            output = net(img_norm)
+            cnn_loss = criterion(output, trg_norm)
+            running_results_loss += cnn_loss.item()
 
-            running_results_g_loss += g_loss.item()
-            running_results_d_loss += d_loss.item()
-            
             output_unnorm = torch.zeros_like(output)
         
             output_unnorm[:,0,:,:] = 80*output[:,0,:,:] - 40
@@ -651,16 +552,12 @@ def validation(netG: nn.Module, netD: nn.Module, cuda_batches_queue: Queue, gene
                 break
         pbar.close()
 
-    g_loss = running_results_g_loss/VAL_STEPS
-    d_loss = running_results_d_loss/VAL_STEPS
-    
-    #mse_metrics = float((mse_metrics/VAL_STEPS).cpu())
+    cnn_loss = running_results_loss/VAL_STEPS
     rmse_wind_metrics = float((rmse_wind_metrics/VAL_STEPS).cpu())
     rmse_slp_metrics = float((rmse_slp_metrics/VAL_STEPS).cpu())
     rmse95_metrics = float((rmse95_metrics/VAL_STEPS).cpu())
 
-    losses_dict = {'val_g_loss': g_loss,
-                   'val_d_loss': d_loss}
+    losses_dict = {'val_loss': cnn_loss}
     metrics_values = {'RMSE_Wind': rmse_wind_metrics,
                       'RMSE_SLP': rmse_slp_metrics,
                       'RMSE95': rmse95_metrics,
@@ -767,26 +664,18 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     #TB_writer_train = SummaryWriter(log_dir=tboard_dir_train)
     #TB_writer_val = SummaryWriter(log_dir=tboard_dir_val)
 
-    netG = Generator()
-    netG = netG.cuda()
-    
-    netD = Discriminator()
-    netD = netD.cuda()
+    net = CNN()
+    net = net.cuda()
     
     if start_epoch != 1:
-        netG.load_state_dict(torch.load('epochs/netG_epoch_%d.pth' % (start_epoch - 1)))
-        netD.load_state_dict(torch.load('epochs/netD_epoch_%d.pth' % (start_epoch - 1)))
+        net.load_state_dict(torch.load('epochs/net_epoch_%d.pth' % (start_epoch - 1)))
     else:
         pass
 
-    generator_criterion = GeneratorLoss()
-    #discriminator_criterion = DiscriminatorLoss()
-    
-    optimizerG = optim.Adam(netG.parameters(),lr=2e-4)
-    schedulerG = CosineAnnealingWarmRestarts(optimizerG, T_0=128, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
-    
-    optimizerD = optim.Adam(netD.parameters(),lr=2e-4)
-    schedulerD = CosineAnnealingWarmRestarts(optimizerD, T_0=128, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
+    criterion = CNNLoss()
+
+    optimizer = optim.Adam(net.parameters(),lr=2e-4)
+    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=128, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
 
     #print('logging the graph of the model')
     #TB_writer_train.add_graph(model, [torch.tensor(np.random.random(size=(args.batch_size, 3, args.img_size, args.img_size)).astype(np.float32)).cuda(),
@@ -887,18 +776,14 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
 
 
     print('\n\nstart training')
-    #start_epoch = 1 if resume_state is None else resume_state.epoch
     for epoch in range(start_epoch, NUM_EPOCHS+1):
-    #print('\n\n%s: Train epoch: %d of %d' % (args.run_name, epoch, EPOCHS))
-    
+
         print('Train epoch: %d of %d' % (epoch, NUM_EPOCHS))
-        train_metrics = train_epoch(netG, netD, optimizerG, optimizerD, epoch, NUM_EPOCHS, train_cuda_batches_queue,
-                                    generator_criterion, STEPS_PER_EPOCH)
+        train_metrics = train_epoch(net, optimizer, epoch, train_cuda_batches_queue, criterion, STEPS_PER_EPOCH)
         print(str(train_metrics))
         
         print('\nValidation:')
-        val_metrics = validation(netG, netD, val_cuda_batches_queue, generator_criterion,
-                                 VAL_STEPS, epoch)
+        val_metrics = validation(net, val_cuda_batches_queue, criterion, VAL_STEPS)
         print(str(val_metrics))
 
         # note: this re-shuffling will not make an immediate effect since the queues are already filled with the
@@ -906,8 +791,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         train_ds.shuffle()
         val_ds.shuffle()
         
-        torch.save(netG.state_dict(), 'epochs/netG_epoch_%d.pth' % (epoch))
-        torch.save(netD.state_dict(), 'epochs/netD_epoch_%d.pth' % (epoch))
+        torch.save(net.state_dict(), 'epochs/net_epoch_%d.pth' % (epoch))
         #region checkpoints
         #val_loss_checkpointer.save_models(pdict={'epoch': epoch, 'val_loss': val_metrics['val_loss']},
         #                                  metrics=val_metrics)
@@ -931,9 +815,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         #TB_writer_val.add_scalar('leq1_accuracy', val_metrics['leq1_accuracy'], epoch)
         # endregion
         
-        schedulerD.step(epoch=epoch)
-        schedulerG.step(epoch=epoch)
-
+        scheduler.step(epoch=epoch)
     #checkpoint_saver_final.save_models(None)
 
 
