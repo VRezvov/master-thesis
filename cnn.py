@@ -835,7 +835,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         except Empty:
             pass
 
-main(start_epoch = 200, NUM_EPOCHS = 500, STEPS_PER_EPOCH=730, batch_size=8, VAL_STEPS=10000, val_batch_size=1)
+main(start_epoch = 1, NUM_EPOCHS = 250, STEPS_PER_EPOCH=730, batch_size=8, VAL_STEPS=10000, val_batch_size=1)
 
 
 
