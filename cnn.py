@@ -475,7 +475,7 @@ def train_epoch(net: nn.Module, optimizer: torch.optim.Optimizer, epoch: int, cu
 
     pbar.close()
 
-    losses_dict = {'train_loss': g_loss}
+    losses_dict = {'train_loss': cnn_loss}
     metrics_values = {'RMSE_Wind': rmse_wind_metrics,
                       'RMSE_SLP': rmse_slp_metrics,
                       'RMSE95': rmse95_metrics,
