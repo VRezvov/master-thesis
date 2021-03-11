@@ -266,7 +266,7 @@ def ssim(img1, img2, window_size=110, size_average=True):
 
 class CNNLoss(nn.Module):
     def __init__(self):
-        super(GeneratorLoss, self).__init__()
+        super(CNNLoss, self).__init__()
         #vgg = vgg19(pretrained=True)
         #vgg = vgg.cuda()
         #loss_network = nn.Sequential(*list(vgg.features)[:20]).eval()
@@ -299,7 +299,7 @@ class CNNLoss(nn.Module):
 
 class CNN(nn.Module):
     def __init__(self):
-        super(Generator, self).__init__()
+        super(CNN, self).__init__()
         self.block1 = nn.Sequential(nn.Conv2d(3, 64, kernel_size=9, padding=4),nn.PReLU())
         self.block2 = ResidualBlock(64)
         self.block3 = ResidualBlock(64)
