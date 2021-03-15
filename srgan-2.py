@@ -516,7 +516,7 @@ def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimi
         
         pbar.update(1)
         pbar.set_postfix_str(
-            'Train Epoch: %d [%d/%d (%.2f%%)] RMSE_Wind: %.6f; RMSE_SLP: %.6f; RMSE95: %.6f; SSIM: %.6f; PSNR: %.6f' % (epoch,
+            'Train Epoch: %d [%d/%d (%.2f%%)] RMSE_Wind: %.3f; RMSE_SLP: %.3f; RMSE95: %.3f; SSIM: %.3f; PSNR: %.3f' % (epoch,
                                                                                                                         batch_idx+1,
                                                                                                                         STEPS_PER_EPOCH,
                                                                                                                         100. *(batch_idx+1) / STEPS_PER_EPOCH,
@@ -543,7 +543,7 @@ def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimi
     rmse95_metrics = float((rmse95_metrics/STEPS_PER_EPOCH).cpu())
     
     pbar.set_postfix_str(
-        'Train Epoch: %d; RMSE_Wind: %.6f; RMSE_SLP: %.6f; RMSE95: %.6f; SSIM: %.6f; PSNR: %.6f' % (epoch,                                                                                                                                rmse_wind_metrics,
+        'Train Epoch: %d; RMSE_Wind: %.3f; RMSE_SLP: %.3f; RMSE95: %.3f; SSIM: %.3f; PSNR: %.3f' % (epoch,                                                                                                                                rmse_wind_metrics,
                                                                                                     rmse_slp_metrics,
                                                                                                     rmse95_metrics,
                                                                                                     ssim_metrics,
@@ -953,7 +953,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         except Empty:
             pass
 
-main(start_epoch = 1, NUM_EPOCHS = 50, STEPS_PER_EPOCH = 730, batch_size=8, VAL_STEPS=10000, val_batch_size=1)
+main(start_epoch = 51, NUM_EPOCHS = 100, STEPS_PER_EPOCH = 730, batch_size=8, VAL_STEPS=10000, val_batch_size=1)
 
 
 
