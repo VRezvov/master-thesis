@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-
+# SRGAN-2 Loss = Image_loss + Adv_loss
 try:
     import os
     from os import listdir
@@ -953,7 +953,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         except Empty:
             pass
 
-main(start_epoch = 51, NUM_EPOCHS = 100, STEPS_PER_EPOCH = 730, batch_size=8, VAL_STEPS=10000, val_batch_size=1)
+main(start_epoch = 101, NUM_EPOCHS = 150, STEPS_PER_EPOCH = 730, batch_size=8, VAL_STEPS=10000, val_batch_size=1)
 
 
 
