@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # coding: utf-8
-# SRGAN-2 Loss = Image_loss + Adv_loss
+# SRGAN-2 Loss = Image_loss + 0.01 * Adv_loss
 try:
     import os
     from os import listdir
@@ -288,7 +288,7 @@ class GeneratorLoss(nn.Module):
         image_loss = self.mse_loss(out_images, target_images)
         
         #generator_loss = image_loss + 0.005 * adversarial_loss + 0.01 * perception_loss
-        generator_loss = image_loss + adversarial_loss
+        generator_loss = image_loss + 0.01 * adversarial_loss
         return generator_loss
 
 
@@ -764,7 +764,8 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     #if resume_state is not None:
     #    model.load_state_dict(torch.load(resume_state.epoch_snapshot))
 
-    #TB_writer_train = SummaryWriter(log_dir=tboard_dir_train)
+    #TB_writer_train = SummaryWriter(log_dir = tboard_dir_train)
+    #TB_writer_train = SummaryWriter()
     #TB_writer_val = SummaryWriter(log_dir=tboard_dir_val)
 
     netG = Generator()
@@ -782,11 +783,12 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     generator_criterion = GeneratorLoss()
     #discriminator_criterion = DiscriminatorLoss()
     
-    optimizerG = optim.Adam(netG.parameters(),lr=2e-4)
-    schedulerG = CosineAnnealingWarmRestarts(optimizerG, T_0=128, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
-    
-    optimizerD = optim.Adam(netD.parameters(),lr=2e-4)
-    schedulerD = CosineAnnealingWarmRestarts(optimizerD, T_0=128, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
+    optimizerG = optim.Adam(netG.parameters(),lr=1e-4)
+    schedulerG = CosineAnnealingWarmRestarts(optimizerG, T_0=200, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
+
+    optimizerD = optim.Adam(netD.parameters(),lr=1e-4)
+    schedulerD = CosineAnnealingWarmRestarts(optimizerD, T_0=200, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
+
 
     #print('logging the graph of the model')
     #TB_writer_train.add_graph(model, [torch.tensor(np.random.random(size=(args.batch_size, 3, args.img_size, args.img_size)).astype(np.float32)).cuda(),
@@ -921,18 +923,40 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         # region write losses to tensorboard
         #TB_writer_train.add_scalar('g_loss', train_metrics['train_g_loss'], epoch)
         #TB_writer_train.add_scalar('d_loss', train_metrics['train_d_loss'], epoch)
-        #TB_writer_train.add_scalar('LR', scheduler.get_last_lr()[-1], epoch)
-        #TB_writer_train.add_scalar('MSE', mse_metrics, epoch)
-        #TB_writer_train.add_scalar('SSIM', ssim_metrics, epoch)
-        #TB_writer_train.add_scalar('PSNR', psnr_metrics, epoch)
+        #TB_writer_train.add_scalar('LR', schedulerG.get_last_lr()[-1], epoch)
+        #TB_writer_train.add_scalar('RMSE_Wind', train_metrics['RMSE_Wind'], epoch)
+        #TB_writer_train.add_scalar('RMSE_SLP', train_metrics['RMSE_SLP'], epoch)
+        #TB_writer_train.add_scalar('RMSE95', train_metrics['RMSE95'], epoch)
+        #TB_writer_train.add_scalar('PSNR', train_metrics['PSNR'], epoch)
+        #TB_writer_train.add_scalar('SSIM', train_metrics['SSIM'], epoch)
 
         #TB_writer_val.add_scalar('accuracy', val_metrics['accuracy'], epoch)
         #TB_writer_val.add_scalar('loss', val_metrics['val_loss'], epoch)
         #TB_writer_val.add_scalar('leq1_accuracy', val_metrics['leq1_accuracy'], epoch)
         # endregion
-        
+        text_file = open("train.txt", "a")
+        text_file.write(str(epoch) + " " +
+                        str(schedulerG.get_last_lr()[-1]) + " " +
+                        str(train_metrics['RMSE_Wind']) + " " +
+                        str(train_metrics['RMSE_SLP']) + " "+
+                        str(train_metrics['RMSE95'])+ " "+
+                        str(train_metrics['PSNR'])+"\n"
+                        )
+        text_file.close()
+
+        text_file = open("val.txt", "a")
+        text_file.write(str(epoch) + " " +
+                    str(val_metrics['RMSE_Wind']) + " " +
+                    str(val_metrics['RMSE_SLP']) + " " +
+                    str(val_metrics['RMSE95']) + " " +
+                    str(val_metrics['PSNR']) + "\n"
+                    )
+        text_file.close()
+
+
         schedulerD.step(epoch=epoch)
         schedulerG.step(epoch=epoch)
+
 
     #checkpoint_saver_final.save_models(None)
 
@@ -953,7 +977,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         except Empty:
             pass
 
-main(start_epoch = 101, NUM_EPOCHS = 150, STEPS_PER_EPOCH = 730, batch_size=8, VAL_STEPS=10000, val_batch_size=1)
+main(start_epoch = 1, NUM_EPOCHS = 400, STEPS_PER_EPOCH = 365, batch_size=8, VAL_STEPS=10000, val_batch_size=1)
 
 
 
