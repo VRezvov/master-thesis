@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # coding: utf-8
-# SRGAN-2 Loss = Image_loss + 0.01 * Adv_loss
+
+# SRGAN-1 Loss = Image_loss + 0.01 * Adv_loss
+
 try:
     import os
     from os import listdir
@@ -418,16 +420,8 @@ class ResidualBlock(nn.Module):
 
 # TRAIN
 
-#netG = Generator()
-#print('# generator parameters:', sum(param.numel() for param in netG.parameters()))
-#netD = Discriminator()
-#print('# discriminator parameters:', sum(param.numel() for param in netD.parameters()))
-
 def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimizer, optimizerD: torch.optim.Optimizer, 
-                epoch: int, NUM_EPOCHS: int, cuda_batches_queue: Queue,
-                generator_criterion: callable, 
-                #discriminator_criterion: callable,
-                STEPS_PER_EPOCH: int):
+                epoch: int, cuda_batches_queue: Queue, generator_criterion: callable,  STEPS_PER_EPOCH: int):
 
     netG.train()
     netD.train()
@@ -572,8 +566,8 @@ def train_epoch(netG: nn.Module, netD: nn.Module, optimizerG: torch.optim.Optimi
     return dict(**losses_dict, **metrics_values)
 
 
-def validation(netG: nn.Module, netD: nn.Module, cuda_batches_queue: Queue, generator_criterion: callable,
-               VAL_STEPS: int, epoch: int):
+def validation(netG: nn.Module, netD: nn.Module, cuda_batches_queue: Queue,
+               generator_criterion: callable, VAL_STEPS: int):
     
     netG.eval()
     netD.eval()
@@ -594,9 +588,7 @@ def validation(netG: nn.Module, netD: nn.Module, cuda_batches_queue: Queue, gene
         pbar = tqdm(total=VAL_STEPS, ncols=min(term_columns, 180))
         for batch_idx in range(VAL_STEPS):
             (img, trg, msk) = cuda_batches_queue.get(block=True)
-            
-            #batch_sizes += val_batch_size
-            
+
             wind_real = torch.sqrt(torch.square(trg[:,0,:,:]) + torch.square(trg[:,1,:,:]))
             
             img_norm = torch.zeros_like(img)
@@ -713,10 +705,11 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     #    print(f'backup directory couldn`t be found and couldn`t be created:\n{scripts_backup_dir}')
     #    raise FileNotFoundError(f'backup directory couldn`t be found and couldn`t be created:\n{scripts_backup_dir}')
 
-    #tboard_dir_train = os.path.join(os.path.abspath('./'), 'logs', curr_run_name, 'TBoard', 'train')
-    #tboard_dir_val = os.path.join(os.path.abspath('./'), 'logs', curr_run_name, 'TBoard', 'val')
+    tboard_dir_train = os.path.join(os.path.abspath('./'), 'logs', 'srgan-1', 'train')
+    tboard_dir_val = os.path.join(os.path.abspath('./'), 'logs', 'srgan-1', 'val')
+
     #try:
-    #    EnsureDirectoryExists(tboard_dir_train)
+    #    EnsureDirectoryExists('logs/srgan-1/train')
     #except:
     #    print('Tensorboard directory couldn`t be found and couldn`t be created:\n%s' % tboard_dir_train)
     #    raise FileNotFoundError(
@@ -753,7 +746,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     cuda = True if torch.cuda.is_available() else False
     if cuda:
         torch.cuda.set_device(0)
-    cuda_dev = torch.device('cuda:0')
+    #cuda_dev = torch.device('cuda:0')
 
     print('creating the model')
     
@@ -764,9 +757,8 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     #if resume_state is not None:
     #    model.load_state_dict(torch.load(resume_state.epoch_snapshot))
 
-    #TB_writer_train = SummaryWriter(log_dir = tboard_dir_train)
-    #TB_writer_train = SummaryWriter()
-    #TB_writer_val = SummaryWriter(log_dir=tboard_dir_val)
+    TB_writer_train = SummaryWriter(log_dir = tboard_dir_train)
+    TB_writer_val = SummaryWriter(log_dir = tboard_dir_val)
 
     netG = Generator()
     netG = netG.cuda()
@@ -775,20 +767,18 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     netD = netD.cuda()
     
     if start_epoch != 1:
-        netG.load_state_dict(torch.load('epochs/netG_epoch_%d.pth' % (start_epoch - 1)))
-        netD.load_state_dict(torch.load('epochs/netD_epoch_%d.pth' % (start_epoch - 1)))
+        netG.load_state_dict(torch.load('epochs/srgan-1/netG_epoch_%d.pth' % (start_epoch - 1)))
+        netD.load_state_dict(torch.load('epochs/srgan-1/netD_epoch_%d.pth' % (start_epoch - 1)))
     else:
         pass
 
     generator_criterion = GeneratorLoss()
-    #discriminator_criterion = DiscriminatorLoss()
-    
-    optimizerG = optim.Adam(netG.parameters(),lr=1e-4)
-    schedulerG = CosineAnnealingWarmRestarts(optimizerG, T_0=200, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
 
-    optimizerD = optim.Adam(netD.parameters(),lr=1e-4)
-    schedulerD = CosineAnnealingWarmRestarts(optimizerD, T_0=200, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
+    optimizerG = optim.Adam(netG.parameters(),lr=2e-4)
+    schedulerG = CosineAnnealingWarmRestarts(optimizerG, T_0=50, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
 
+    optimizerD = optim.Adam(netD.parameters(),lr=2e-4)
+    schedulerD = CosineAnnealingWarmRestarts(optimizerD, T_0=50, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
 
     #print('logging the graph of the model')
     #TB_writer_train.add_graph(model, [torch.tensor(np.random.random(size=(args.batch_size, 3, args.img_size, args.img_size)).astype(np.float32)).cuda(),
@@ -851,8 +841,6 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     val_cudathread.start()
     # endregion train dataset
 
-
-
     #ET = ElasticTransformer(img_size=(3,args.img_size,args.img_size),
     #                        batch_size=args.batch_size,
     #                        flow_initial_size=(args.img_size//32, args.img_size//32),
@@ -891,16 +879,13 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     print('\n\nstart training')
     #start_epoch = 1 if resume_state is None else resume_state.epoch
     for epoch in range(start_epoch, NUM_EPOCHS+1):
-    #print('\n\n%s: Train epoch: %d of %d' % (args.run_name, epoch, EPOCHS))
-    
         print('Train epoch: %d of %d' % (epoch, NUM_EPOCHS))
-        train_metrics = train_epoch(netG, netD, optimizerG, optimizerD, epoch, NUM_EPOCHS, train_cuda_batches_queue,
+        train_metrics = train_epoch(netG, netD, optimizerG, optimizerD, epoch, train_cuda_batches_queue,
                                     generator_criterion, STEPS_PER_EPOCH)
         print(str(train_metrics))
         
         print('\nValidation:')
-        val_metrics = validation(netG, netD, val_cuda_batches_queue, generator_criterion,
-                                 VAL_STEPS, epoch)
+        val_metrics = validation(netG, netD, val_cuda_batches_queue, generator_criterion, VAL_STEPS)
         print(str(val_metrics))
 
         # note: this re-shuffling will not make an immediate effect since the queues are already filled with the
@@ -908,8 +893,8 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         train_ds.shuffle()
         val_ds.shuffle()
         
-        torch.save(netG.state_dict(), 'epochs/netG_epoch_%d.pth' % (epoch))
-        torch.save(netD.state_dict(), 'epochs/netD_epoch_%d.pth' % (epoch))
+        torch.save(netG.state_dict(), 'epochs/srgan-1/netG_epoch_%d.pth' % (epoch))
+        torch.save(netD.state_dict(), 'epochs/srgan-1/netD_epoch_%d.pth' % (epoch))
         #region checkpoints
         #val_loss_checkpointer.save_models(pdict={'epoch': epoch, 'val_loss': val_metrics['val_loss']},
         #                                  metrics=val_metrics)
@@ -921,19 +906,32 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         #endregion
 
         # region write losses to tensorboard
-        #TB_writer_train.add_scalar('g_loss', train_metrics['train_g_loss'], epoch)
-        #TB_writer_train.add_scalar('d_loss', train_metrics['train_d_loss'], epoch)
-        #TB_writer_train.add_scalar('LR', schedulerG.get_last_lr()[-1], epoch)
-        #TB_writer_train.add_scalar('RMSE_Wind', train_metrics['RMSE_Wind'], epoch)
-        #TB_writer_train.add_scalar('RMSE_SLP', train_metrics['RMSE_SLP'], epoch)
-        #TB_writer_train.add_scalar('RMSE95', train_metrics['RMSE95'], epoch)
-        #TB_writer_train.add_scalar('PSNR', train_metrics['PSNR'], epoch)
-        #TB_writer_train.add_scalar('SSIM', train_metrics['SSIM'], epoch)
+        TB_writer_train.add_scalar('g_loss', train_metrics['train_g_loss'], epoch)
+        TB_writer_train.add_scalar('d_loss', train_metrics['train_d_loss'], epoch)
+        TB_writer_train.add_scalar('LR', schedulerG.get_last_lr()[-1], epoch)
+        TB_writer_train.add_scalar('RMSE_Wind', train_metrics['RMSE_Wind'], epoch)
+        TB_writer_train.add_scalar('RMSE_SLP', train_metrics['RMSE_SLP'], epoch)
+        TB_writer_train.add_scalar('RMSE95', train_metrics['RMSE95'], epoch)
+        TB_writer_train.add_scalar('PSNR', train_metrics['PSNR'], epoch)
+        TB_writer_train.add_scalar('SSIM', train_metrics['SSIM'], epoch)
 
-        #TB_writer_val.add_scalar('accuracy', val_metrics['accuracy'], epoch)
-        #TB_writer_val.add_scalar('loss', val_metrics['val_loss'], epoch)
-        #TB_writer_val.add_scalar('leq1_accuracy', val_metrics['leq1_accuracy'], epoch)
+        losses_dict = {'val_g_loss': g_loss,
+                       'val_d_loss': d_loss}
+        metrics_values = {'RMSE_Wind': rmse_wind_metrics,
+                          'RMSE_SLP': rmse_slp_metrics,
+                          'RMSE95': rmse95_metrics,
+                          'PSNR': psnr_metrics,
+                          'SSIM': ssim_metrics}
+
+        TB_writer_val.add_scalar('g_loss', val_metrics['train_g_loss'], epoch)
+        TB_writer_val.add_scalar('d_loss', val_metrics['train_d_loss'], epoch)
+        TB_writer_val.add_scalar('RMSE_Wind', val_metrics['RMSE_Wind'], epoch)
+        TB_writer_val.add_scalar('RMSE_SLP', val_metrics['RMSE_SLP'], epoch)
+        TB_writer_val.add_scalar('RMSE95', val_metrics['RMSE95'], epoch)
+        TB_writer_val.add_scalar('PSNR', val_metrics['PSNR'], epoch)
+        TB_writer_val.add_scalar('SSIM', val_metrics['SSIM'], epoch)
         # endregion
+
         text_file = open("train.txt", "a")
         text_file.write(str(epoch) + " " +
                         str(schedulerG.get_last_lr()[-1]) + " " +
@@ -953,16 +951,9 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
                     )
         text_file.close()
 
-
         schedulerD.step(epoch=epoch)
         schedulerG.step(epoch=epoch)
 
-
-    #checkpoint_saver_final.save_models(None)
-
-
-    # train_ds.close()
-    # test_ds.close()
     train_thread_killer.set_tokill(True)
     train_cuda_transfers_thread_killer.set_tokill(True)
     val_thread_killer.set_tokill(True)
@@ -977,7 +968,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         except Empty:
             pass
 
-main(start_epoch = 1, NUM_EPOCHS = 400, STEPS_PER_EPOCH = 365, batch_size=8, VAL_STEPS=10000, val_batch_size=1)
+main(start_epoch = 1, NUM_EPOCHS = 750, STEPS_PER_EPOCH = 365, batch_size = 8, VAL_STEPS = 10000, val_batch_size = 1)
 
 
 
