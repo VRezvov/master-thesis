@@ -915,8 +915,8 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         TB_writer_train.add_scalar('PSNR', train_metrics['PSNR'], epoch)
         TB_writer_train.add_scalar('SSIM', train_metrics['SSIM'], epoch)
 
-        TB_writer_val.add_scalar('g_loss', val_metrics['train_g_loss'], epoch)
-        TB_writer_val.add_scalar('d_loss', val_metrics['train_d_loss'], epoch)
+        TB_writer_val.add_scalar('g_loss', val_metrics['val_g_loss'], epoch)
+        TB_writer_val.add_scalar('d_loss', val_metrics['val_d_loss'], epoch)
         TB_writer_val.add_scalar('RMSE_Wind', val_metrics['RMSE_Wind'], epoch)
         TB_writer_val.add_scalar('RMSE_SLP', val_metrics['RMSE_SLP'], epoch)
         TB_writer_val.add_scalar('RMSE95', val_metrics['RMSE95'], epoch)
