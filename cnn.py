@@ -609,7 +609,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     #    print(f'backup directory couldn`t be found and couldn`t be created:\n{scripts_backup_dir}')
     #    raise FileNotFoundError(f'backup directory couldn`t be found and couldn`t be created:\n{scripts_backup_dir}')
 
-    tboard_dir_train = os.path.join(os.path.abspath('./'), 'logs', 'сnn', 'train')
+    tboard_dir_train = os.path.join(os.path.abspath('./'), 'logs', 'cnn', 'train')
     tboard_dir_val = os.path.join(os.path.abspath('./'), 'logs', 'cnn', 'val')
 
     #try:
