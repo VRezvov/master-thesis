@@ -37,6 +37,7 @@ nn.Sequential(*list(vgg19(pretrained=True).features)[:]).eval()
 data_index_fname = 'data/data_index.p'
 data_index_val_fname = 'data/data_index_val.p'
 
+
 def find_files(dataset_dir):
     image_filenames = [join(dataset_dir, x) for x in listdir(dataset_dir)]
     return image_filenames
@@ -63,8 +64,8 @@ def threaded_batches_feeder(tokill, batches_queue, dataset_generator):
     """
     while tokill() == False:
         for _, (batch_images, batch_targets, batch_mask) in enumerate(dataset_generator):
-            #We fill the queue with new fetched batch until we reach the max size.
-            batches_queue.put(((batch_images, batch_targets, batch_mask)), block=True)
+            # We fill the queue with new fetched batch until we reach the max size.
+            batches_queue.put((batch_images, batch_targets, batch_mask), block=True)
             if tokill() == True:
                 return
 
@@ -159,7 +160,7 @@ class InputGenerator:
         while True:
             # In the start of each epoch we shuffle the data paths
             with self.lock:
-                if (self.init_count == 0):
+                if self.init_count == 0:
                     self.shuffle()
                     self.imgs, self.trgs, self_msks = [], [], []
                     self.init_count = 1
@@ -610,7 +611,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
 
     generator_criterion = GeneratorLoss()
 
-    optimizerG = optim.Adam(netG.parameters(),lr=2e-4)
+    optimizerG = optim.Adam(netG.parameters(), lr=2e-4)
     schedulerG = CosineAnnealingWarmRestarts(optimizerG, T_0=50, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
     
     train_ds = InputGenerator(data_index_fname, batch_size, debug = False)
@@ -631,7 +632,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     train_cuda_transfers_thread_killer.set_tokill(False)
     train_cudathread = Thread(target=threaded_cuda_batches, args=(train_cuda_transfers_thread_killer, train_cuda_batches_queue, train_batches_queue))
     train_cudathread.start()
-    #endregion train dataset
+    # endregion train dataset
 
     # region test dataset
     val_ds = InputGenerator(data_index_val_fname, val_batch_size,debug=False)
@@ -721,7 +722,8 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         except Empty:
             pass
 
-main(start_epoch = 1, NUM_EPOCHS = 750, STEPS_PER_EPOCH = 10, batch_size = 8, VAL_STEPS = 10, val_batch_size = 1)
+
+main(start_epoch=1, NUM_EPOCHS=750, STEPS_PER_EPOCH=10, batch_size=8, VAL_STEPS=10, val_batch_size=1)
 
 
 
