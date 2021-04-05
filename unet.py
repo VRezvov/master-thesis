@@ -200,6 +200,7 @@ class InputGenerator:
 
 # SSIM
 
+
 def gaussian(window_size, sigma):
     gauss = torch.Tensor([exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)])
     return gauss / gauss.sum()
@@ -208,7 +209,7 @@ def gaussian(window_size, sigma):
 def create_window(window_size, channel):
     _1D_window = gaussian(window_size, 1.5).unsqueeze(1)
     _2D_window = _1D_window.mm(_1D_window.t()).float().unsqueeze(0).unsqueeze(0)
-    #.mm - Performs a matrix multiplication of the matrice
+    # .mm - Performs a matrix multiplication of the matrices
     
     window = _2D_window.expand(channel, 1, window_size, window_size).contiguous()
     return window
@@ -249,6 +250,7 @@ def ssim(img1, img2, window_size=110, size_average=True):
 
 # LOSS
 
+
 class GeneratorLoss(nn.Module):
     def __init__(self):
         super(GeneratorLoss, self).__init__()
@@ -276,6 +278,7 @@ class GeneratorLoss(nn.Module):
 g_loss = GeneratorLoss()
 
 # MODEL
+
 
 class Generator(nn.Module):
     def __init__(self):
@@ -388,6 +391,7 @@ class ResidualBlock(nn.Module):
 
 # TRAIN
 
+
 def train_epoch(netG: nn.Module, optimizerG: torch.optim.Optimizer, epoch: int,
                 cuda_batches_queue: Queue, generator_criterion: callable, STEPS_PER_EPOCH: int):
 
@@ -410,18 +414,18 @@ def train_epoch(netG: nn.Module, optimizerG: torch.optim.Optimizer, epoch: int,
         
         (img, trg, msk) = cuda_batches_queue.get(block=True)
         
-        wind_real = torch.sqrt(torch.square(trg[:,0,:,:]) + torch.square(trg[:,1,:,:]))
+        wind_real = torch.sqrt(torch.square(trg[:, 0, :, :]) + torch.square(trg[:, 1, :, :]))
         
         img_norm = torch.zeros_like(img)
         trg_norm = torch.zeros_like(trg)
         
-        img_norm[:,0,:,:] = (img[:,0,:,:]+40)/80
-        img_norm[:,1,:,:] = (img[:,1,:,:]+40)/80
-        img_norm[:,2,:,:] = (img[:,2,:,:]-940)/120
+        img_norm[:, 0, :, :] = (img[:, 0, :, :]+40)/80
+        img_norm[:, 1, :, :] = (img[:, 1, :, :]+40)/80
+        img_norm[:, 2, :, :] = (img[:, 2, :, :]-940)/120
                                 
-        trg_norm[:,0,:,:] = (trg[:,0,:,:]+40)/80
-        trg_norm[:,1,:,:] = (trg[:,1,:,:]+40)/80      
-        trg_norm[:,2,:,:] = (trg[:,2,:,:]-940)/120
+        trg_norm[:, 0, :, :] = (trg[:, 0, :, :]+40)/80
+        trg_norm[:, 1, :, :] = (trg[:, 1, :, :]+40)/80
+        trg_norm[:, 2, :, :] = (trg[:, 2, :, :]-940)/120
                 
         diff_msk = (wind_real - msk) > 0
         wind_real_msk = wind_real * diff_msk
@@ -439,17 +443,17 @@ def train_epoch(netG: nn.Module, optimizerG: torch.optim.Optimizer, epoch: int,
 
         fake_img_unnorm = torch.zeros_like(fake_img)
         
-        fake_img_unnorm[:,0,:,:] = 80*fake_img[:,0,:,:] - 40
-        fake_img_unnorm[:,1,:,:] = 80*fake_img[:,1,:,:] - 40
-        fake_img_unnorm[:,2,:,:] = 120*fake_img[:,2,:,:] + 940
+        fake_img_unnorm[:, 0, :, :] = 80*fake_img[:, 0, :, :] - 40
+        fake_img_unnorm[:, 1, :, :] = 80*fake_img[:, 1, :, :] - 40
+        fake_img_unnorm[:, 2, :, :] = 120*fake_img[:, 2, :, :] + 940
         
-        wind_fake = torch.sqrt(torch.square(fake_img_unnorm[:,0,:,:]) + torch.square(fake_img_unnorm[:,1,:,:]))
+        wind_fake = torch.sqrt(torch.square(fake_img_unnorm[:, 0, :, :]) + torch.square(fake_img_unnorm[:, 1, :, :]))
         wind_fake_msk = wind_fake * diff_msk
         
         batch_mse = ((fake_img - trg_norm) ** 2).data.mean()        
         batch_rmse_wind = torch.sqrt(((wind_fake - wind_real) ** 2).data.mean())
         batch_rmse95 = torch.sqrt(((wind_fake_msk - wind_real_msk) ** 2).data.sum() / diff_msk.data.sum())
-        batch_rmse_slp = torch.sqrt(((fake_img_unnorm[:,2,:,:] - trg[:,2,:,:]) ** 2).data.mean())
+        batch_rmse_slp = torch.sqrt(((fake_img_unnorm[:, 2, :, :] - trg[:, 2, :, :]) ** 2).data.mean())
         
         mse_metrics += batch_mse        
         rmse_wind_metrics += batch_rmse_wind
@@ -463,15 +467,16 @@ def train_epoch(netG: nn.Module, optimizerG: torch.optim.Optimizer, epoch: int,
         
         pbar.update(1)
         pbar.set_postfix_str(
-            'Train Epoch: %d [%d/%d (%.2f%%)] RMSE_Wind: %.3f; RMSE_SLP: %.3f; RMSE95: %.3f; SSIM: %.3f; PSNR: %.3f' % (epoch,
-                                                                                                                        batch_idx+1,
-                                                                                                                        STEPS_PER_EPOCH,
-                                                                                                                        100. *(batch_idx+1) / STEPS_PER_EPOCH,
-                                                                                                                        rmse_wind_metrics / (batch_idx + 1),
-                                                                                                                        rmse_slp_metrics / (batch_idx + 1),
-                                                                                                                        rmse95_metrics / (batch_idx + 1),
-                                                                                                                        ssim_metrics,
-                                                                                                                        psnr_metrics)
+            'Train Epoch: %d [%d/%d (%.2f%%)] RMSE_Wind: %.3f; '
+            'RMSE_SLP: %.3f; RMSE95: %.3f; SSIM: %.3f; PSNR: %.3f' % (epoch,
+                                                                      batch_idx+1,
+                                                                      STEPS_PER_EPOCH,
+                                                                      100. * (batch_idx+1) / STEPS_PER_EPOCH,
+                                                                      rmse_wind_metrics / (batch_idx + 1),
+                                                                      rmse_slp_metrics / (batch_idx + 1),
+                                                                      rmse95_metrics / (batch_idx + 1),
+                                                                      ssim_metrics,
+                                                                      psnr_metrics)
         )
         if batch_idx >= STEPS_PER_EPOCH - 1:
             break
@@ -482,7 +487,8 @@ def train_epoch(netG: nn.Module, optimizerG: torch.optim.Optimizer, epoch: int,
     rmse95_metrics = float((rmse95_metrics/STEPS_PER_EPOCH).cpu())
     
     pbar.set_postfix_str(
-        'Train Epoch: %d; RMSE_Wind: %.3f; RMSE_SLP: %.3f; RMSE95: %.3f; SSIM: %.3f; PSNR: %.3f' % (epoch,                                                                                                                                rmse_wind_metrics,
+        'Train Epoch: %d; RMSE_Wind: %.3f; RMSE_SLP: %.3f; RMSE95: %.3f; SSIM: %.3f; PSNR: %.3f' % (epoch,
+                                                                                                    rmse_wind_metrics,
                                                                                                     rmse_slp_metrics,
                                                                                                     rmse95_metrics,
                                                                                                     ssim_metrics,
@@ -518,18 +524,18 @@ def validation(netG: nn.Module, cuda_batches_queue: Queue, generator_criterion: 
         for batch_idx in range(VAL_STEPS):
             (img, trg, msk) = cuda_batches_queue.get(block=True)
 
-            wind_real = torch.sqrt(torch.square(trg[:,0,:,:]) + torch.square(trg[:,1,:,:]))
+            wind_real = torch.sqrt(torch.square(trg[:, 0, :, :]) + torch.square(trg[:, 1, :, :]))
             
             img_norm = torch.zeros_like(img)
             trg_norm = torch.zeros_like(trg)
 
-            img_norm[:,0,:,:] = (img[:,0,:,:]+40)/80
-            img_norm[:,1,:,:] = (img[:,1,:,:]+40)/80
-            img_norm[:,2,:,:] = (img[:,2,:,:]-940)/120
+            img_norm[:, 0, :, :] = (img[:, 0, :, :]+40)/80
+            img_norm[:, 1, :, :] = (img[:, 1, :, :]+40)/80
+            img_norm[:, 2, :, :] = (img[:, 2, :, :]-940)/120
                                 
-            trg_norm[:,0,:,:] = (trg[:,0,:,:]+40)/80
-            trg_norm[:,1,:,:] = (trg[:,1,:,:]+40)/80      
-            trg_norm[:,2,:,:] = (trg[:,2,:,:]-940)/120
+            trg_norm[:, 0, :, :] = (trg[:, 0, :, :]+40)/80
+            trg_norm[:, 1, :, :] = (trg[:, 1, :, :]+40)/80
+            trg_norm[:, 2, :, :] = (trg[:, 2, :, :]-940)/120
                 
             diff_msk = (wind_real - msk) > 0
             wind_real_msk = wind_real * diff_msk
@@ -541,17 +547,17 @@ def validation(netG: nn.Module, cuda_batches_queue: Queue, generator_criterion: 
 
             output_unnorm = torch.zeros_like(output)
         
-            output_unnorm[:,0,:,:] = 80*output[:,0,:,:] - 40
-            output_unnorm[:,1,:,:] = 80*output[:,1,:,:] - 40
-            output_unnorm[:,2,:,:] = 120*output[:,2,:,:] + 940
+            output_unnorm[:, 0, :, :] = 80*output[:, 0, :, :] - 40
+            output_unnorm[:, 1, :, :] = 80*output[:, 1, :, :] - 40
+            output_unnorm[:, 2, :, :] = 120*output[:, 2, :, :] + 940
             
-            wind_fake = torch.sqrt(torch.square(output_unnorm[:,0,:,:]) + torch.square(output_unnorm[:,1,:,:]))
+            wind_fake = torch.sqrt(torch.square(output_unnorm[:, 0, :, :]) + torch.square(output_unnorm[:, 1, :, :]))
             wind_fake_msk = wind_fake * diff_msk
             
             batch_mse = ((output - trg_norm) ** 2).data.mean()        
             batch_rmse_wind = torch.sqrt(((wind_fake - wind_real) ** 2).data.mean())
             batch_rmse95 = torch.sqrt(((wind_fake_msk - wind_real_msk) ** 2).data.sum() / diff_msk.data.sum())
-            batch_rmse_slp = torch.sqrt(((output_unnorm[:,2,:,:] - trg[:,2,:,:]) ** 2).data.mean())
+            batch_rmse_slp = torch.sqrt(((output_unnorm[:, 2, :, :] - trg[:, 2, :, :]) ** 2).data.mean())
             
             mse_metrics += batch_mse        
             rmse_wind_metrics += batch_rmse_wind
@@ -598,8 +604,8 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
 
     print('creating the model')
 
-    TB_writer_train = SummaryWriter(log_dir = tboard_dir_train)
-    TB_writer_val = SummaryWriter(log_dir = tboard_dir_val)
+    TB_writer_train = SummaryWriter(log_dir=tboard_dir_train)
+    TB_writer_val = SummaryWriter(log_dir=tboard_dir_val)
 
     netG = Generator()
     #netG = netG.cuda()
@@ -614,7 +620,7 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     optimizerG = optim.Adam(netG.parameters(), lr=2e-4)
     schedulerG = CosineAnnealingWarmRestarts(optimizerG, T_0=50, T_mult=2, eta_min=1.0e-9, lr_decay=0.75)
     
-    train_ds = InputGenerator(data_index_fname, batch_size, debug = False)
+    train_ds = InputGenerator(data_index_fname, batch_size, debug=False)
     
     batches_queue_length = min(STEPS_PER_EPOCH, 64)
     
@@ -630,12 +636,15 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
     
     train_cuda_transfers_thread_killer = thread_killer()
     train_cuda_transfers_thread_killer.set_tokill(False)
-    train_cudathread = Thread(target=threaded_cuda_batches, args=(train_cuda_transfers_thread_killer, train_cuda_batches_queue, train_batches_queue))
+    train_cudathread = Thread(
+        target=threaded_cuda_batches,
+        args=(train_cuda_transfers_thread_killer, train_cuda_batches_queue, train_batches_queue)
+    )
     train_cudathread.start()
     # endregion train dataset
 
     # region test dataset
-    val_ds = InputGenerator(data_index_val_fname, val_batch_size,debug=False)
+    val_ds = InputGenerator(data_index_val_fname, val_batch_size, debug=False)
     batches_queue_length = min(VAL_STEPS, 64)
     
     val_batches_queue = Queue(maxsize=batches_queue_length)
@@ -648,7 +657,10 @@ def main(start_epoch: int, NUM_EPOCHS: int, STEPS_PER_EPOCH: int, batch_size: in
         thr.start()
     val_cuda_transfers_thread_killer = thread_killer()
     val_cuda_transfers_thread_killer.set_tokill(False)
-    val_cudathread = Thread(target=threaded_cuda_batches, args=(val_cuda_transfers_thread_killer, val_cuda_batches_queue, val_batches_queue))
+    val_cudathread = Thread(
+        target=threaded_cuda_batches,
+        args=(val_cuda_transfers_thread_killer, val_cuda_batches_queue, val_batches_queue)
+    )
     val_cudathread.start()
     # endregion train dataset
 
